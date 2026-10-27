@@ -1,0 +1,298 @@
+---
+import Ghost from "./Ghost.astro";
+
+interface Question {
+  label: string;
+  text: string;
+}
+
+interface Props {
+  // API path that streams the ghost's answer, e.g. /api/exhibits/flash/seance
+  endpoint: string;
+  ghost: string;
+  catchphrase: string;
+  color: string;
+  // Extra field sent with every question (the GitHub user in the graveyard).
+  user?: string;
+  questions?: Question[];
+}
+
+const defaultQuestions: Question[] = [
+  { label: "Tell me your story", text: "Tell me your story. How did you live and how did you die?" },
+  { label: "Answer your critics", text: "Your critics say you deserved to die. What do you say to them?" },
+  { label: "Why should you come back?", text: "Why should you come back from the dead?" },
+];
+
+const { endpoint, ghost, catchphrase, color, user = "", questions = defaultQuestions } = Astro.props;
+const inputId = `question-${endpoint.replace(/[^\w]/g, "-")}`;
+---
+
+<section
+  class="seance"
+  data-seance
+  data-endpoint={endpoint}
+  data-user={user}
+  style={`--ghost: ${color}`}
+>
+  <header class="seance-header">
+    <div data-seance-ghost>
+      <Ghost color={color} size={64} />
+    </div>
+    <div>
+      <p class="eyebrow">Séance</p>
+      <h2 data-seance-name>{ghost}</h2>
+      <p class="catchphrase" data-seance-catchphrase>“{catchphrase}”</p>
+    </div>
+  </header>
+
+  <ol class="messages" data-messages aria-live="polite"></ol>
+
+  <div class="quick" data-quick>
+    {
+      questions.map((q) => (
+        <button type="button" data-question={q.text}>
+          {q.label}
+        </button>
+      ))
+    }
+  </div>
+
+  <form class="ask" data-form>
+    <label class="sr-only" for={inputId}>Your question for the ghost</label>
+    <textarea id={inputId} name="question" rows="2" placeholder="Ask the ghost something…" required
+    ></textarea>
+    <button type="submit">Ask</button>
+  </form>
+</section>
+
+<script>
+  import { format, streamText } from "../lib/api";
+
+  type Message = { role: "user" | "assistant"; content: string };
+
+  const WELCOME = "The candles are lit. Ask me anything… if you dare.";
+
+  document.querySelectorAll<HTMLElement>("[data-seance]").forEach((seance) => {
+    const list = seance.querySelector<HTMLOListElement>("[data-messages]")!;
+    const form = seance.querySelector<HTMLFormElement>("[data-form]")!;
+    const textarea = form.querySelector("textarea")!;
+    const ghostSvg = seance.querySelector("[data-seance-ghost] svg");
+    const buttons = seance.querySelectorAll<HTMLButtonElement>("button");
+
+    let history: Message[] = [];
+    let busy = false;
+
+    function addMessage(role: Message["role"], text: string) {
+      const item = document.createElement("li");
+      item.className = `message ${role === "user" ? "user-msg" : "ghost-msg"}`;
+      item.innerHTML = format(text);
+      list.append(item);
+      list.scrollTop = list.scrollHeight;
+      return item;
+    }
+
+    function reset() {
+      history = [];
+      list.innerHTML = "";
+      addMessage("assistant", WELCOME);
+    }
+
+    function setBusy(value: boolean) {
+      busy = value;
+      buttons.forEach((b) => (b.disabled = value));
+      ghostSvg?.classList.toggle("talking", value);
+    }
+
+    async function ask(question: string) {
+      if (busy || !question.trim()) return;
+
+      history.push({ role: "user", content: question.trim() });
+      addMessage("user", question.trim());
+      const bubble = addMessage("assistant", "…");
+      bubble.classList.add("pending");
+      setBusy(true);
+
+      try {
+        const body = { messages: history, user: seance.dataset.user || undefined };
+        const answer = await streamText(seance.dataset.endpoint!, body, (text) => {
+          bubble.classList.remove("pending");
+          bubble.innerHTML = format(text);
+          list.scrollTop = list.scrollHeight;
+        });
+        history.push({ role: "assistant", content: answer });
+      } catch {
+        bubble.classList.remove("pending");
+        bubble.classList.add("error");
+        bubble.textContent = "The spirit did not answer. Are the museum server and Ollama running?";
+        history.pop();
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    // Other parts of the page (the graveyard) can point the séance to a new ghost.
+    seance.addEventListener("seance:reset", reset);
+
+    seance.querySelectorAll<HTMLButtonElement>("[data-question]").forEach((button) => {
+      button.addEventListener("click", () => ask(button.dataset.question!));
+    });
+
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const question = textarea.value;
+      textarea.value = "";
+      ask(question);
+    });
+
+    // Enter sends, Shift+Enter adds a new line.
+    textarea.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" && !event.shiftKey) {
+        event.preventDefault();
+        form.requestSubmit();
+      }
+    });
+
+    reset();
+  });
+</script>
+
+<style>
+  .seance {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 20px;
+    border: 1px solid color-mix(in srgb, var(--ghost) 35%, transparent);
+    border-radius: var(--radius);
+    background: var(--surface);
+    box-shadow: 0 20px 60px -30px var(--ghost);
+  }
+
+  .seance-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  h2 {
+    margin: 0;
+    font-size: 1.2rem;
+  }
+
+  .catchphrase {
+    margin: 2px 0 0;
+    color: var(--muted);
+    font-style: italic;
+    font-size: 0.9rem;
+  }
+
+  .messages {
+    list-style: none;
+    margin: 0;
+    padding: 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    height: 360px;
+    overflow-y: auto;
+  }
+
+  .messages :global(.message) {
+    max-width: 85%;
+    padding: 10px 14px;
+    border-radius: 14px;
+    white-space: pre-wrap;
+  }
+
+  .messages :global(.ghost-msg) {
+    align-self: flex-start;
+    background: color-mix(in srgb, var(--ghost) 14%, var(--surface-2));
+    border-bottom-left-radius: 4px;
+  }
+
+  .messages :global(.user-msg) {
+    align-self: flex-end;
+    background: var(--surface-2);
+    border-bottom-right-radius: 4px;
+  }
+
+  .messages :global(.pending) {
+    animation: flicker 1.2s ease-in-out infinite;
+  }
+
+  .messages :global(.error) {
+    color: var(--pink);
+  }
+
+  @keyframes flicker {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 1; }
+  }
+
+  .quick {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  button {
+    font: inherit;
+    cursor: pointer;
+    border-radius: 999px;
+    border: 1px solid color-mix(in srgb, var(--ghost) 45%, transparent);
+    background: transparent;
+    color: var(--text);
+    padding: 6px 14px;
+    font-size: 0.88rem;
+    transition: background 0.2s ease;
+  }
+
+  button:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--ghost) 18%, transparent);
+  }
+
+  button:disabled {
+    opacity: 0.5;
+    cursor: wait;
+  }
+
+  .ask {
+    display: flex;
+    gap: 8px;
+    align-items: stretch;
+  }
+
+  textarea {
+    flex: 1;
+    resize: none;
+    font: inherit;
+    color: var(--text);
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 10px 12px;
+  }
+
+  textarea:focus {
+    outline: 2px solid color-mix(in srgb, var(--ghost) 60%, transparent);
+    outline-offset: 1px;
+  }
+
+  .ask button[type="submit"] {
+    border-radius: 12px;
+    background: var(--ghost);
+    color: #2a2238;
+    font-weight: 800;
+    border: none;
+    padding-inline: 18px;
+  }
+
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+</style>

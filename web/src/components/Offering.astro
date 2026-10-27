@@ -1,0 +1,231 @@
+---
+interface Props {
+  exhibitId: string;
+  offering: string;
+  color: string;
+}
+
+const { exhibitId, offering, color } = Astro.props;
+
+// The special offering looks like "💾 A floppy disk…": the emoji is the first word.
+const [specialEmoji, ...specialWords] = offering.split(" ");
+
+const items = [
+  { id: "candle", emoji: "🕯️", label: "Light a candle" },
+  { id: "marigold", emoji: "🌼", label: "Leave a marigold" },
+  { id: "bread", emoji: "🍞", label: "Leave pan de muerto" },
+  { id: "special", emoji: specialEmoji, label: specialWords.join(" ") },
+];
+---
+
+<section
+  class="altar"
+  data-altar
+  data-exhibit={exhibitId}
+  data-emojis={JSON.stringify(Object.fromEntries(items.map((i) => [i.id, i.emoji])))}
+  style={`--ghost: ${color}`}
+>
+  <header>
+    <p class="eyebrow">Ofrenda</p>
+    <h2>Leave an offering</h2>
+    <p class="hint">
+      On Día de los Muertos, offerings guide the spirits home. This altar has
+      <strong data-total>0</strong> offerings.
+    </p>
+  </header>
+
+  <div class="shelf" data-shelf aria-hidden="true"></div>
+
+  <div class="items">
+    {
+      items.map((item) => (
+        <button type="button" data-item={item.id} title={item.label}>
+          <span class="emoji">{item.emoji}</span>
+          <span class="label">{item.label}</span>
+        </button>
+      ))
+    }
+  </div>
+
+  <p class="reaction" data-reaction hidden></p>
+</section>
+
+<script>
+  import { format, getJson, postJson } from "../lib/api";
+
+  type Counts = Record<string, number>;
+  type OfferingsResponse = { counts: Counts; total: number; reaction?: string | null };
+
+  const MAX_ON_SHELF = 40;
+
+  document.querySelectorAll<HTMLElement>("[data-altar]").forEach((altar) => {
+    const exhibitId = altar.dataset.exhibit!;
+    const emojis: Record<string, string> = JSON.parse(altar.dataset.emojis!);
+    const shelf = altar.querySelector<HTMLElement>("[data-shelf]")!;
+    const totalEl = altar.querySelector<HTMLElement>("[data-total]")!;
+    const reaction = altar.querySelector<HTMLElement>("[data-reaction]")!;
+    const buttons = altar.querySelectorAll<HTMLButtonElement>("[data-item]");
+
+    // Draws every offering on the altar shelf, mixed like a real ofrenda.
+    function render({ counts, total }: OfferingsResponse, newItem?: string) {
+      totalEl.textContent = String(total);
+      const pile = Object.entries(counts).flatMap(([id, n]) => Array(n).fill(emojis[id]));
+      const shown = pile.sort(() => Math.random() - 0.5).slice(0, MAX_ON_SHELF);
+
+      shelf.innerHTML = "";
+      if (shown.length === 0) {
+        shelf.innerHTML = `<span class="empty">The altar is empty…</span>`;
+        return;
+      }
+      shown.forEach((emoji) => {
+        const span = document.createElement("span");
+        span.textContent = emoji;
+        shelf.append(span);
+      });
+      if (newItem) {
+        const fresh = document.createElement("span");
+        fresh.textContent = emojis[newItem];
+        fresh.className = "fresh";
+        shelf.prepend(fresh);
+      }
+    }
+
+    async function give(item: string) {
+      buttons.forEach((b) => (b.disabled = true));
+      reaction.hidden = false;
+      reaction.classList.add("pending");
+      reaction.textContent = "The ghost notices your gift…";
+
+      try {
+        const result = await postJson<OfferingsResponse>(`/api/exhibits/${exhibitId}/offerings`, { item });
+        render(result, item);
+        reaction.classList.remove("pending");
+        reaction.innerHTML = result.reaction
+          ? format(result.reaction)
+          : "<em>Your offering glows on the altar. The ghost is too sleepy to answer.</em>";
+      } catch {
+        reaction.classList.remove("pending");
+        reaction.textContent = "The altar is closed. Is the museum server running?";
+      } finally {
+        buttons.forEach((b) => (b.disabled = false));
+      }
+    }
+
+    buttons.forEach((button) => button.addEventListener("click", () => give(button.dataset.item!)));
+
+    getJson<OfferingsResponse>(`/api/exhibits/${exhibitId}/offerings`)
+      .then((data) => render(data))
+      .catch(() => render({ counts: {}, total: 0 }));
+  });
+</script>
+
+<style>
+  .altar {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 20px;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    background:
+      radial-gradient(80% 60% at 50% 100%, rgba(255, 196, 120, 0.12), transparent 70%),
+      var(--surface);
+  }
+
+  h2 {
+    margin: 0;
+    font-size: 1.2rem;
+  }
+
+  .hint {
+    margin: 4px 0 0;
+    color: var(--muted);
+    font-size: 0.92rem;
+  }
+
+  .hint strong {
+    color: #ffd59e;
+  }
+
+  .shelf {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    min-height: 64px;
+    padding: 12px;
+    border-radius: 12px;
+    border-bottom: 4px solid rgba(255, 196, 120, 0.35);
+    background: var(--surface-2);
+    font-size: 1.4rem;
+    line-height: 1.3;
+  }
+
+  .shelf :global(.empty) {
+    font-size: 0.9rem;
+    color: var(--muted);
+    font-style: italic;
+    align-self: center;
+  }
+
+  .shelf :global(.fresh) {
+    animation: arrive 0.8s ease-out;
+    filter: drop-shadow(0 0 8px #ffd59e);
+  }
+
+  @keyframes arrive {
+    from { transform: translateY(-24px) scale(1.6); opacity: 0; }
+    to { transform: none; opacity: 1; }
+  }
+
+  .items {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 140px), 1fr));
+    gap: 8px;
+  }
+
+  button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    font: inherit;
+    font-size: 0.85rem;
+    text-align: left;
+    color: var(--text);
+    cursor: pointer;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    background: var(--surface-2);
+    transition: border-color 0.2s ease, transform 0.2s ease;
+  }
+
+  button:hover:not(:disabled) {
+    border-color: #ffd59e;
+    transform: translateY(-2px);
+  }
+
+  button:disabled {
+    opacity: 0.5;
+    cursor: wait;
+  }
+
+  .emoji {
+    font-size: 1.3rem;
+  }
+
+  .reaction {
+    margin: 0;
+    padding: 12px 14px;
+    border-radius: 14px;
+    background: color-mix(in srgb, var(--ghost) 14%, var(--surface-2));
+  }
+
+  .pending {
+    animation: flicker 1.2s ease-in-out infinite;
+  }
+
+  @keyframes flicker {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 1; }
+  }
+</style>

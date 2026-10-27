@@ -1,0 +1,129 @@
+---
+import "../styles/global.css";
+
+interface Props {
+  title: string;
+  description?: string;
+}
+
+const { title, description = "A haunted museum of dead tech, powered by a local open model." } =
+  Astro.props;
+const path = Astro.url.pathname.replace(/\/$/, "") || "/";
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content={description} />
+    <title>{title}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Nunito+Sans:opsz,wght@6..12,400;6..12,700;6..12,800&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <header class="site-header container">
+      <a href="/" class="logo">👻 Haunted Museum <span class="mono">of Dead Tech</span></a>
+      <nav aria-label="Museum wings">
+        <a href="/" aria-current={path === "/" ? "page" : undefined}>Exhibits</a>
+        <a href="/debate" aria-current={path.startsWith("/debate") ? "page" : undefined}>Debate Hall</a>
+        <a href="/graveyard" aria-current={path.startsWith("/graveyard") ? "page" : undefined}>Graveyard</a>
+      </nav>
+      <span class="spirit-status" data-spirit-status>Calling the spirits…</span>
+    </header>
+
+    <main>
+      <slot />
+    </main>
+
+    <footer class="container site-footer">
+      Every ghost here runs on a local open model. No internet needed to talk to the dead.
+    </footer>
+
+    <script>
+      import { API_URL } from "../lib/api";
+      const status = document.querySelector<HTMLElement>("[data-spirit-status]");
+
+      async function checkSpirits() {
+        if (!status) return;
+        try {
+          const res = await fetch(`${API_URL}/api/health`);
+          const health = await res.json();
+          if (health.online && health.modelReady) {
+            status.dataset.state = "awake";
+            status.textContent = `Spirits awake · ${health.model}`;
+          } else if (health.online) {
+            status.dataset.state = "asleep";
+            status.textContent = `Missing model: ollama pull ${health.model}`;
+          } else {
+            status.dataset.state = "asleep";
+            status.textContent = "Spirits asleep · start Ollama";
+          }
+        } catch {
+          status.dataset.state = "asleep";
+          status.textContent = "Museum server is closed";
+        }
+      }
+
+      checkSpirits();
+    </script>
+  </body>
+</html>
+
+<style>
+  .site-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding-block: 24px;
+  }
+
+  .logo {
+    font-weight: 800;
+    text-decoration: none;
+    font-size: 1.05rem;
+  }
+
+  nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  nav a {
+    padding: 6px 12px;
+    border-radius: 999px;
+    text-decoration: none;
+    font-size: 0.9rem;
+    color: var(--muted);
+    transition: color 0.2s ease, background 0.2s ease;
+  }
+
+  nav a:hover {
+    color: var(--text);
+  }
+
+  nav a[aria-current="page"] {
+    color: var(--text);
+    background: var(--surface-2);
+  }
+
+  .logo .mono {
+    font-weight: 400;
+    color: var(--muted);
+    font-size: 0.9rem;
+  }
+
+  .site-footer {
+    padding-block: 48px 32px;
+    color: var(--muted);
+    font-size: 0.85rem;
+    text-align: center;
+  }
+</style>

@@ -1,0 +1,15 @@
+{
+  "name": "haunted-museum",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "pnpm --parallel --recursive dev",
+    "dev:server": "pnpm --filter haunted-museum-server dev",
+    "dev:web": "pnpm --filter haunted-museum-web dev",
+    "build": "pnpm --filter haunted-museum-web build"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["esbuild", "sharp"]
+  }
+}

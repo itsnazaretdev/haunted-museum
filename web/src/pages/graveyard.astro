@@ -1,0 +1,413 @@
+---
+import Museum from "../layouts/Museum.astro";
+import Seance from "../components/Seance.astro";
+
+const defaultUser = import.meta.env.PUBLIC_GITHUB_USER ?? "itsnazaretdev";
+
+const repoQuestions = [
+  { label: "Why did I abandon you?", text: "Why do you think I abandoned you?" },
+  { label: "What do you remember?", text: "What do you remember about the time I was writing you?" },
+  { label: "Should I bring you back?", text: "Should I bring you back to life? What would you need?" },
+];
+---
+
+<Museum title="Repo Graveyard · Haunted Museum" description="Where abandoned GitHub projects rest.">
+  <div class="container graveyard" data-graveyard>
+    <header class="intro">
+      <p class="eyebrow">Personal wing</p>
+      <h1>The Repo Graveyard <span>🪦</span></h1>
+      <p>
+        Every project you stopped committing to rests here. Gemma carves an epitaph on each tombstone,
+        and you can summon the ghost of any repo to ask why you left.
+      </p>
+    </header>
+
+    <form class="search" data-search>
+      <label>
+        <span>GitHub user</span>
+        <input name="user" value={defaultUser} maxlength="39" required />
+      </label>
+      <label>
+        <span>Dead after</span>
+        <select name="months">
+          <option value="1">1 month without commits</option>
+          <option value="3" selected>3 months without commits</option>
+          <option value="6">6 months without commits</option>
+          <option value="12">1 year without commits</option>
+        </select>
+      </label>
+      <button type="submit">Visit the graveyard</button>
+    </form>
+
+    <p class="status" data-status aria-live="polite"></p>
+
+    <div class="tombstones" data-tombstones></div>
+  </div>
+
+  <dialog class="summon" data-dialog>
+    <button type="button" class="close" data-close aria-label="Close the séance">✕</button>
+    <Seance
+      endpoint=""
+      ghost="A forgotten repo"
+      catchphrase="…"
+      color="#d9c8ff"
+      questions={repoQuestions}
+    />
+  </dialog>
+</Museum>
+
+<script>
+  import { getJson, postJson } from "../lib/api";
+
+  type Tombstone = {
+    name: string;
+    description: string | null;
+    language: string | null;
+    stars: number;
+    archived: boolean;
+    url: string;
+    createdAt: string;
+    pushedAt: string;
+    daysDead: number;
+    epitaph: string | null;
+  };
+  type Graveyard = { user: string; months: number; offline: boolean; alive: number; tombstones: Tombstone[] };
+
+  const COLORS = ["#d9c8ff", "#b8f2d0", "#ffb3c7", "#a8d8ff", "#fff1a8", "#ffd2a8"];
+
+  const root = document.querySelector<HTMLElement>("[data-graveyard]")!;
+  const form = root.querySelector<HTMLFormElement>("[data-search]")!;
+  const statusEl = root.querySelector<HTMLElement>("[data-status]")!;
+  const grid = root.querySelector<HTMLElement>("[data-tombstones]")!;
+  const dialog = document.querySelector<HTMLDialogElement>("[data-dialog]")!;
+  const seance = dialog.querySelector<HTMLElement>("[data-seance]")!;
+
+  // Each visit gets an id, so a slow old search never overwrites a newer one.
+  let visit = 0;
+
+  const escape = (text: string) => text.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+
+  function deathText(days: number) {
+    if (days < 60) return `${days} days in the grave`;
+    if (days < 730) return `${Math.round(days / 30)} months in the grave`;
+    return `${Math.floor(days / 365)} years in the grave`;
+  }
+
+  function tombstoneHtml(repo: Tombstone, color: string) {
+    const born = repo.createdAt.slice(0, 4);
+    const died = repo.pushedAt.slice(0, 4);
+    return `
+      <div class="stone" style="--stone:${color}">
+        <p class="rip mono">R.I.P.</p>
+        <h2>${escape(repo.name)}</h2>
+        <p class="years mono">${born} — ${died}</p>
+        <p class="epitaph" data-epitaph>${repo.epitaph ? `“${escape(repo.epitaph)}”` : "<span class='carving'>Gemma is carving the epitaph…</span>"}</p>
+        <p class="meta">${deathText(repo.daysDead)}${repo.language ? ` · ${escape(repo.language)}` : ""}${repo.archived ? " · archived" : ""}</p>
+        <div class="actions">
+          <button type="button" data-summon>👻 Summon its ghost</button>
+          <a href="${repo.url}" target="_blank" rel="noopener">Visit grave ↗</a>
+        </div>
+      </div>
+      <div class="ground" aria-hidden="true">🌼 🕯️ 🌼</div>`;
+  }
+
+  function openSeance(repo: Tombstone, user: string, color: string) {
+    seance.dataset.endpoint = `/api/graveyard/${encodeURIComponent(repo.name)}/seance`;
+    seance.dataset.user = user;
+    seance.style.setProperty("--ghost", color);
+    seance.querySelector<SVGElement>("svg")?.style.setProperty("--ghost", color);
+    seance.querySelector("[data-seance-name]")!.textContent = `The Ghost of ${repo.name}`;
+    seance.querySelector("[data-seance-catchphrase]")!.textContent = repo.epitaph
+      ? `“${repo.epitaph}”`
+      : `Last seen ${repo.pushedAt}`;
+    seance.dispatchEvent(new Event("seance:reset"));
+    dialog.showModal();
+  }
+
+  // Epitaphs are written one by one, so Gemma is never asked for everything at once.
+  async function carveEpitaphs(items: { repo: Tombstone; el: HTMLElement }[], user: string, id: number) {
+    for (const { repo, el } of items) {
+      if (id !== visit) return;
+      const target = el.querySelector<HTMLElement>("[data-epitaph]")!;
+      try {
+        const { epitaph } = await postJson<{ epitaph: string }>(
+          `/api/graveyard/${encodeURIComponent(repo.name)}/epitaph`,
+          { user }
+        );
+        repo.epitaph = epitaph;
+        target.textContent = `“${epitaph}”`;
+      } catch {
+        target.innerHTML = "<span class='carving'>The stone is too hard to carve right now.</span>";
+      }
+    }
+  }
+
+  async function visitGraveyard() {
+    const id = ++visit;
+    const data = new FormData(form);
+    const user = String(data.get("user")).trim();
+    const months = String(data.get("months"));
+
+    grid.innerHTML = "";
+    statusEl.textContent = "Walking through the fog…";
+
+    let result: Graveyard;
+    try {
+      result = await getJson<Graveyard>(`/api/graveyard?user=${encodeURIComponent(user)}&months=${months}`);
+    } catch (error) {
+      statusEl.textContent = error instanceof Error ? error.message : "The graveyard gates are closed.";
+      return;
+    }
+    if (id !== visit) return;
+
+    const dead = result.tombstones.length;
+    statusEl.textContent =
+      dead === 0
+        ? `No graves yet: all ${result.alive} repos of ${result.user} are alive. Try a shorter time.`
+        : `${dead} repos rest here · ${result.alive} still alive${result.offline ? " · offline, showing the last visit" : ""}`;
+
+    const pending: { repo: Tombstone; el: HTMLElement }[] = [];
+    result.tombstones.forEach((repo, index) => {
+      const color = COLORS[index % COLORS.length];
+      const el = document.createElement("article");
+      el.className = "grave";
+      el.style.animationDelay = `${index * 60}ms`;
+      el.innerHTML = tombstoneHtml(repo, color);
+      el.querySelector("[data-summon]")!.addEventListener("click", () => openSeance(repo, result.user, color));
+      grid.append(el);
+      if (!repo.epitaph) pending.push({ repo, el });
+    });
+
+    carveEpitaphs(pending, result.user, id);
+  }
+
+  form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    visitGraveyard();
+  });
+
+  dialog.querySelector("[data-close]")!.addEventListener("click", () => dialog.close());
+  // Clicking outside the séance closes it.
+  dialog.addEventListener("click", (event) => {
+    if (event.target === dialog) dialog.close();
+  });
+
+  visitGraveyard();
+</script>
+
+<style>
+  .graveyard {
+    display: grid;
+    gap: 20px;
+  }
+
+  .intro {
+    text-align: center;
+    max-width: 680px;
+    margin-inline: auto;
+  }
+
+  .intro h1 {
+    margin: 8px 0;
+    font-size: clamp(1.8rem, 5vw, 2.6rem);
+  }
+
+  .intro p {
+    color: var(--muted);
+  }
+
+  .search {
+    display: grid;
+    grid-template-columns: 1fr 1fr auto;
+    gap: 12px;
+    align-items: end;
+    padding: 20px;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    background: var(--surface);
+  }
+
+  .search label {
+    display: grid;
+    gap: 4px;
+    font-size: 0.85rem;
+    color: var(--muted);
+  }
+
+  input,
+  select {
+    font: inherit;
+    color: var(--text);
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 10px 12px;
+  }
+
+  .search button {
+    font: inherit;
+    font-weight: 800;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+    color: #2a2238;
+    background: var(--mint);
+  }
+
+  .status {
+    margin: 0;
+    text-align: center;
+    color: var(--muted);
+    font-family: var(--font-code);
+    font-size: 0.85rem;
+  }
+
+  .tombstones {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 250px), 1fr));
+    gap: 28px 20px;
+    padding-top: 12px;
+  }
+
+  .tombstones :global(.grave) {
+    display: flex;
+    flex-direction: column;
+    animation: rise 0.6s ease-out both;
+  }
+
+  @keyframes rise {
+    from { transform: translateY(24px); opacity: 0; }
+    to { transform: none; opacity: 1; }
+  }
+
+  .tombstones :global(.stone) {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 28px 18px 18px;
+    text-align: center;
+    border-radius: 120px 120px 10px 10px;
+    border: 1px solid color-mix(in srgb, var(--stone) 35%, transparent);
+    background:
+      radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--stone) 16%, transparent), transparent 70%),
+      var(--surface-2);
+    transition: transform 0.25s ease, box-shadow 0.25s ease;
+  }
+
+  .tombstones :global(.grave:hover .stone) {
+    transform: rotate(-1deg) translateY(-3px);
+    box-shadow: 0 16px 40px -20px var(--stone);
+  }
+
+  .tombstones :global(.rip) {
+    margin: 0;
+    font-size: 0.75rem;
+    letter-spacing: 0.3em;
+    color: var(--stone);
+  }
+
+  .tombstones :global(h2) {
+    margin: 0;
+    font-size: 1.1rem;
+    word-break: break-word;
+  }
+
+  .tombstones :global(.years) {
+    margin: 0;
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+
+  .tombstones :global(.epitaph) {
+    flex: 1;
+    margin: 10px 0;
+    font-style: italic;
+  }
+
+  .tombstones :global(.carving) {
+    color: var(--muted);
+    animation: flicker 1.4s ease-in-out infinite;
+  }
+
+  @keyframes flicker {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 1; }
+  }
+
+  .tombstones :global(.meta) {
+    margin: 0 0 10px;
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+
+  .tombstones :global(.actions) {
+    display: grid;
+    gap: 6px;
+  }
+
+  .tombstones :global(.actions button) {
+    font: inherit;
+    font-weight: 700;
+    font-size: 0.88rem;
+    cursor: pointer;
+    padding: 8px 12px;
+    border-radius: 999px;
+    border: 1px solid color-mix(in srgb, var(--stone) 60%, transparent);
+    background: transparent;
+    color: var(--text);
+  }
+
+  .tombstones :global(.actions button:hover) {
+    background: color-mix(in srgb, var(--stone) 20%, transparent);
+  }
+
+  .tombstones :global(.actions a) {
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+
+  .tombstones :global(.ground) {
+    text-align: center;
+    padding: 6px 0;
+    border-top: 6px solid #2f3b2f;
+    border-radius: 4px;
+    font-size: 0.85rem;
+    letter-spacing: 0.3em;
+  }
+
+  .summon {
+    width: min(560px, 100% - 32px);
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: var(--text);
+    overflow: visible;
+  }
+
+  .summon::backdrop {
+    background: rgba(10, 8, 16, 0.75);
+    backdrop-filter: blur(3px);
+  }
+
+  .close {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    z-index: 1;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    background: var(--surface-2);
+    color: var(--text);
+    cursor: pointer;
+  }
+
+  @media (max-width: 720px) {
+    .search {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

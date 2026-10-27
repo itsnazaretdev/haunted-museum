@@ -1,0 +1,110 @@
+---
+import Ghost from "./Ghost.astro";
+
+interface Props {
+  id: string;
+  name: string;
+  born: number;
+  died: number | string;
+  color: string;
+  epitaph: string;
+}
+
+const { id, name, born, died, color, epitaph } = Astro.props;
+---
+
+<a class="card" href={`/exhibit/${id}`} style={`--ghost: ${color}`}>
+  <div class="frame">
+    <Ghost color={color} size={80} />
+  </div>
+  <h2>{name}</h2>
+  <p class="years mono">{born} — {died}</p>
+  <p class="epitaph">“{epitaph}”</p>
+  <div class="footer">
+    <span class="cta">Hold a séance →</span>
+    <span class="stats mono" data-stats-for={id}></span>
+  </div>
+  <span class="badge" data-badge-for={id} hidden>💛 Most loved</span>
+</a>
+
+<style>
+  .card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 20px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    text-decoration: none;
+    transition: transform 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+  }
+
+  .card:hover,
+  .card:focus-visible {
+    transform: translateY(-4px);
+    border-color: color-mix(in srgb, var(--ghost) 60%, transparent);
+    box-shadow: 0 12px 40px -18px var(--ghost);
+    outline: none;
+  }
+
+  .frame {
+    display: grid;
+    place-items: center;
+    height: 150px;
+    margin-bottom: 8px;
+    border-radius: 12px;
+    background: radial-gradient(circle at 50% 60%, color-mix(in srgb, var(--ghost) 18%, transparent), transparent 70%),
+      var(--surface-2);
+  }
+
+  h2 {
+    margin: 0;
+    font-size: 1.25rem;
+  }
+
+  .years {
+    margin: 0;
+    font-size: 0.85rem;
+    color: var(--ghost);
+  }
+
+  .epitaph {
+    margin: 4px 0 8px;
+    color: var(--muted);
+    font-style: italic;
+    flex: 1;
+  }
+
+  .footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .cta {
+    font-weight: 700;
+    font-size: 0.9rem;
+    color: var(--ghost);
+  }
+
+  .stats {
+    font-size: 0.78rem;
+    color: var(--muted);
+  }
+
+  .badge {
+    position: absolute;
+    top: 30px;
+    right: 30px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 800;
+    color: #2a2238;
+    background: #ffd59e;
+  }
+</style>

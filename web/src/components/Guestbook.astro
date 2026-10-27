@@ -1,0 +1,223 @@
+---
+interface Props {
+  exhibitId: string;
+  ghost: string;
+  color: string;
+}
+
+const { exhibitId, ghost, color } = Astro.props;
+---
+
+<section class="guestbook" data-guestbook data-exhibit={exhibitId} style={`--ghost: ${color}`}>
+  <header>
+    <p class="eyebrow">Guestbook</p>
+    <h2>Sign the guestbook</h2>
+    <p class="hint">Leave a message and {ghost} will write a dedication back to you.</p>
+  </header>
+
+  <form data-form>
+    <label>
+      <span>Your name</span>
+      <input name="name" maxlength="40" placeholder="Anonymous visitor" />
+    </label>
+    <label>
+      <span>Your message</span>
+      <textarea name="message" maxlength="280" rows="3" required placeholder="I still miss you…"
+      ></textarea>
+    </label>
+    <button type="submit">Sign</button>
+  </form>
+
+  <ol class="entries" data-entries></ol>
+</section>
+
+<script>
+  import { getJson, postJson, format } from "../lib/api";
+
+  type Entry = { id: string; name: string; message: string; reply: string | null; createdAt: string };
+
+  const escape = (text: string) => text.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+
+  function entryHtml(entry: Entry) {
+    const date = new Date(entry.createdAt).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+    const reply = entry.reply
+      ? `<p class="reply">👻 ${format(entry.reply)}</p>`
+      : `<p class="reply muted">👻 <em>The ghost read it silently.</em></p>`;
+    return `<p class="who"><strong>${escape(entry.name)}</strong> <span>${date}</span></p>
+      <p class="msg">${escape(entry.message)}</p>${reply}`;
+  }
+
+  document.querySelectorAll<HTMLElement>("[data-guestbook]").forEach((book) => {
+    const exhibitId = book.dataset.exhibit!;
+    const form = book.querySelector<HTMLFormElement>("[data-form]")!;
+    const list = book.querySelector<HTMLOListElement>("[data-entries]")!;
+    const button = form.querySelector("button")!;
+
+    function addEntry(entry: Entry, atTop = false) {
+      const item = document.createElement("li");
+      item.innerHTML = entryHtml(entry);
+      atTop ? list.prepend(item) : list.append(item);
+    }
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const data = new FormData(form);
+      button.disabled = true;
+      button.textContent = "The ghost is writing…";
+
+      try {
+        const entry = await postJson<Entry>(`/api/exhibits/${exhibitId}/guestbook`, {
+          name: data.get("name"),
+          message: data.get("message"),
+        });
+        list.querySelector(".empty")?.remove();
+        addEntry(entry, true);
+        form.reset();
+      } catch (error) {
+        alertInline(error instanceof Error ? error.message : "Something went wrong.");
+      } finally {
+        button.disabled = false;
+        button.textContent = "Sign";
+      }
+    });
+
+    function alertInline(message: string) {
+      const item = document.createElement("li");
+      item.className = "error";
+      item.textContent = message;
+      list.prepend(item);
+      setTimeout(() => item.remove(), 4000);
+    }
+
+    getJson<Entry[]>(`/api/exhibits/${exhibitId}/guestbook`)
+      .then((entries) => {
+        if (entries.length === 0) {
+          list.innerHTML = `<li class="empty">Nobody has signed yet. Be the first.</li>`;
+        }
+        entries.forEach((entry) => addEntry(entry));
+      })
+      .catch(() => {
+        list.innerHTML = `<li class="empty">The guestbook is locked. Is the museum server running?</li>`;
+      });
+  });
+</script>
+
+<style>
+  .guestbook {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 20px;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    background: var(--surface);
+  }
+
+  h2 {
+    margin: 0;
+    font-size: 1.2rem;
+  }
+
+  .hint {
+    margin: 4px 0 0;
+    color: var(--muted);
+    font-size: 0.92rem;
+  }
+
+  form {
+    display: grid;
+    gap: 10px;
+  }
+
+  label {
+    display: grid;
+    gap: 4px;
+    font-size: 0.85rem;
+    color: var(--muted);
+  }
+
+  input,
+  textarea {
+    font: inherit;
+    color: var(--text);
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 10px 12px;
+    resize: vertical;
+  }
+
+  input:focus,
+  textarea:focus {
+    outline: 2px solid color-mix(in srgb, var(--ghost) 60%, transparent);
+    outline-offset: 1px;
+  }
+
+  button {
+    justify-self: start;
+    font: inherit;
+    font-weight: 800;
+    cursor: pointer;
+    border: none;
+    border-radius: 12px;
+    padding: 8px 18px;
+    background: var(--ghost);
+    color: #2a2238;
+  }
+
+  button:disabled {
+    opacity: 0.6;
+    cursor: wait;
+  }
+
+  .entries {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 10px;
+    max-height: 420px;
+    overflow-y: auto;
+  }
+
+  .entries :global(li) {
+    padding: 12px 14px;
+    border-radius: 12px;
+    background: var(--surface-2);
+    border-left: 3px solid var(--ghost);
+  }
+
+  .entries :global(p) {
+    margin: 0;
+  }
+
+  .entries :global(.who span) {
+    color: var(--muted);
+    font-size: 0.8rem;
+    margin-left: 6px;
+  }
+
+  .entries :global(.msg) {
+    margin: 4px 0 8px;
+  }
+
+  .entries :global(.reply) {
+    font-size: 0.92rem;
+    color: color-mix(in srgb, var(--ghost) 70%, var(--text));
+  }
+
+  .entries :global(.muted),
+  .entries :global(.empty) {
+    color: var(--muted);
+  }
+
+  .entries :global(.empty) {
+    border-left-color: var(--border);
+    font-style: italic;
+  }
+
+  .entries :global(.error) {
+    color: var(--pink);
+    border-left-color: var(--pink);
+  }
+</style>

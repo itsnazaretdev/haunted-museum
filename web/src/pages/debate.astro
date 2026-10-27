@@ -1,0 +1,524 @@
+---
+import { getCollection } from "astro:content";
+import Museum from "../layouts/Museum.astro";
+import Ghost from "../components/Ghost.astro";
+
+const exhibits = (await getCollection("exhibits")).sort((a, b) => a.data.order - b.data.order);
+const ghosts = exhibits.map((e) => ({ id: e.id, name: e.data.name, ghost: e.data.ghost, color: e.data.color }));
+const DEFAULT_TOPIC = "Which of you deserves to come back from the dead?";
+---
+
+<Museum title="Debate Hall · Haunted Museum" description="Two ghosts of dead tech argue live.">
+  <div class="container hall" data-hall data-ghosts={JSON.stringify(ghosts)}>
+    <header class="intro">
+      <p class="eyebrow">Debate Hall</p>
+      <h1>Two ghosts. One stage. <span>No mercy.</span></h1>
+      <p>Pick two spirits, give them a topic and let them argue. When the candles burn out, you choose the winner.</p>
+    </header>
+
+    <form class="setup" data-setup>
+      <label>
+        <span>Ghost on the left</span>
+        <select name="left">
+          {ghosts.map((g, i) => <option value={g.id} selected={i === 1}>{g.name}</option>)}
+        </select>
+      </label>
+      <span class="vs">VS</span>
+      <label>
+        <span>Ghost on the right</span>
+        <select name="right">
+          {ghosts.map((g, i) => <option value={g.id} selected={i === 2}>{g.name}</option>)}
+        </select>
+      </label>
+      <label class="topic">
+        <span>Topic (optional)</span>
+        <input name="topic" maxlength="200" placeholder={DEFAULT_TOPIC} />
+      </label>
+      <label>
+        <span>Rounds</span>
+        <select name="rounds">
+          <option value="2">2 rounds</option>
+          <option value="3" selected>3 rounds</option>
+          <option value="4">4 rounds</option>
+        </select>
+      </label>
+      <button type="submit" data-start>Start the debate</button>
+    </form>
+
+    <section class="stage" data-stage>
+      <div class="side left" data-side="left">
+        <Ghost color="var(--side)" size={90} />
+        <p class="side-name" data-name></p>
+      </div>
+
+      <ol class="transcript" data-transcript aria-live="polite">
+        <li class="host">The stage is empty. Choose two ghosts to begin.</li>
+      </ol>
+
+      <div class="side right" data-side="right">
+        <Ghost color="var(--side)" size={90} />
+        <p class="side-name" data-name></p>
+      </div>
+    </section>
+
+    <section class="vote" data-vote hidden>
+      <h2>Who won the debate?</h2>
+      <div class="vote-buttons">
+        <button type="button" data-vote-for="left"></button>
+        <button type="button" data-vote-for="right"></button>
+      </div>
+      <p class="result" data-result></p>
+    </section>
+
+    <section class="scoreboard">
+      <h2 class="eyebrow">Hall of fame</h2>
+      <ol data-scoreboard></ol>
+    </section>
+  </div>
+</Museum>
+
+<script>
+  import { format, getJson, postJson, streamText } from "../lib/api";
+
+  type GhostInfo = { id: string; name: string; ghost: string; color: string };
+  type Turn = { speaker: string; text: string };
+  type Scores = Record<string, { wins: number; losses: number }>;
+
+  const hall = document.querySelector<HTMLElement>("[data-hall]")!;
+  const ghosts: GhostInfo[] = JSON.parse(hall.dataset.ghosts!);
+  const byId = Object.fromEntries(ghosts.map((g) => [g.id, g]));
+
+  const form = hall.querySelector<HTMLFormElement>("[data-setup]")!;
+  const startButton = hall.querySelector<HTMLButtonElement>("[data-start]")!;
+  const transcriptEl = hall.querySelector<HTMLOListElement>("[data-transcript]")!;
+  const sides = {
+    left: hall.querySelector<HTMLElement>('[data-side="left"]')!,
+    right: hall.querySelector<HTMLElement>('[data-side="right"]')!,
+  };
+  const voteBox = hall.querySelector<HTMLElement>("[data-vote]")!;
+  const resultEl = hall.querySelector<HTMLElement>("[data-result]")!;
+  const scoreboardEl = hall.querySelector<HTMLOListElement>("[data-scoreboard]")!;
+
+  let current: { left: GhostInfo; right: GhostInfo } | null = null;
+
+  function showGhost(side: "left" | "right", ghost: GhostInfo) {
+    sides[side].style.setProperty("--side", ghost.color);
+    sides[side].querySelector("[data-name]")!.textContent = ghost.name;
+  }
+
+  function setTalking(side: "left" | "right" | null) {
+    (["left", "right"] as const).forEach((s) => {
+      sides[s].classList.toggle("speaking", s === side);
+      sides[s].querySelector("svg")?.classList.toggle("talking", s === side);
+    });
+  }
+
+  function addLine(className: string, html: string, color?: string) {
+    const item = document.createElement("li");
+    item.className = className;
+    if (color) item.style.setProperty("--side", color);
+    item.innerHTML = html;
+    transcriptEl.append(item);
+    transcriptEl.scrollTop = transcriptEl.scrollHeight;
+    return item;
+  }
+
+  // Previews the chosen ghosts on stage before the debate starts.
+  function preview() {
+    const data = new FormData(form);
+    showGhost("left", byId[String(data.get("left"))]);
+    showGhost("right", byId[String(data.get("right"))]);
+  }
+
+  async function runDebate(left: GhostInfo, right: GhostInfo, topic: string, rounds: number) {
+    const transcript: Turn[] = [];
+    transcriptEl.innerHTML = "";
+    addLine("host", `🎙️ <strong>Host:</strong> ${format(topic)}`);
+
+    for (let i = 0; i < rounds * 2; i++) {
+      const side = i % 2 === 0 ? "left" : "right";
+      const speaker = side === "left" ? left : right;
+      const opponent = side === "left" ? right : left;
+
+      setTalking(side);
+      const bubble = addLine(`line ${side} pending`, "…", speaker.color);
+
+      try {
+        const text = await streamText(
+          "/api/debate/turn",
+          { speaker: speaker.id, opponent: opponent.id, topic, transcript },
+          (partial) => {
+            bubble.classList.remove("pending");
+            bubble.innerHTML = `<strong>${speaker.name}</strong>${format(partial)}`;
+            transcriptEl.scrollTop = transcriptEl.scrollHeight;
+          }
+        );
+        transcript.push({ speaker: speaker.id, text });
+      } catch {
+        bubble.classList.remove("pending");
+        bubble.classList.add("error");
+        bubble.textContent = "A spirit lost its voice. Are the museum server and Ollama running?";
+        setTalking(null);
+        return false;
+      }
+    }
+
+    setTalking(null);
+    addLine("host", "🎙️ <strong>Host:</strong> The candles are burning out… Who won?");
+    return true;
+  }
+
+  function renderScoreboard(scores: Scores) {
+    const rows = Object.entries(scores)
+      .filter(([id]) => byId[id])
+      .sort((a, b) => b[1].wins - a[1].wins || a[1].losses - b[1].losses);
+
+    scoreboardEl.innerHTML = rows.length
+      ? rows
+          .map(
+            ([id, s]) =>
+              `<li style="--side:${byId[id].color}"><span>${byId[id].name}</span><span class="mono">${s.wins}W · ${s.losses}L</span></li>`
+          )
+          .join("")
+      : `<li class="empty">No debates yet. The first winner gets eternal glory.</li>`;
+  }
+
+  form.addEventListener("change", preview);
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const data = new FormData(form);
+    const left = byId[String(data.get("left"))];
+    const right = byId[String(data.get("right"))];
+    if (left.id === right.id) {
+      transcriptEl.innerHTML = "";
+      addLine("host error", "A ghost cannot debate itself… choose two different spirits.");
+      return;
+    }
+
+    const topic = String(data.get("topic") ?? "").trim() || form.topic.placeholder;
+    const rounds = Number(data.get("rounds"));
+
+    current = { left, right };
+    voteBox.hidden = true;
+    resultEl.textContent = "";
+    form.querySelectorAll("select, input, button").forEach((el) => ((el as HTMLInputElement).disabled = true));
+    startButton.textContent = "Debating…";
+
+    const finished = await runDebate(left, right, topic, rounds);
+
+    form.querySelectorAll("select, input, button").forEach((el) => ((el as HTMLInputElement).disabled = false));
+    startButton.textContent = "Start a new debate";
+
+    if (finished) {
+      voteBox.querySelectorAll<HTMLButtonElement>("[data-vote-for]").forEach((button) => {
+        const ghost = button.dataset.voteFor === "left" ? left : right;
+        button.textContent = `${ghost.name} wins`;
+        button.style.setProperty("--side", ghost.color);
+        button.disabled = false;
+      });
+      voteBox.hidden = false;
+      voteBox.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+  });
+
+  voteBox.querySelectorAll<HTMLButtonElement>("[data-vote-for]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      if (!current) return;
+      const winner = button.dataset.voteFor === "left" ? current.left : current.right;
+      const loser = winner === current.left ? current.right : current.left;
+      voteBox.querySelectorAll<HTMLButtonElement>("button").forEach((b) => (b.disabled = true));
+
+      try {
+        renderScoreboard(await postJson<Scores>("/api/debate/vote", { winner: winner.id, loser: loser.id }));
+        resultEl.textContent = `👑 ${winner.name} rises victorious. ${loser.name} returns to the shadows… for now.`;
+      } catch {
+        resultEl.textContent = "The vote got lost in the fog. Is the museum server running?";
+      }
+    });
+  });
+
+  preview();
+  getJson<Scores>("/api/debate/scoreboard").then(renderScoreboard).catch(() => renderScoreboard({}));
+</script>
+
+<style>
+  .hall {
+    display: grid;
+    gap: 24px;
+  }
+
+  .intro {
+    text-align: center;
+    max-width: 680px;
+    margin-inline: auto;
+  }
+
+  .intro h1 {
+    margin: 8px 0;
+    font-size: clamp(1.8rem, 5vw, 2.6rem);
+    line-height: 1.15;
+  }
+
+  .intro h1 span {
+    color: var(--pink);
+  }
+
+  .intro p {
+    color: var(--muted);
+  }
+
+  .setup {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    gap: 12px 16px;
+    align-items: end;
+    padding: 20px;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    background: var(--surface);
+  }
+
+  .setup label {
+    display: grid;
+    gap: 4px;
+    font-size: 0.85rem;
+    color: var(--muted);
+  }
+
+  .setup .topic {
+    grid-column: 1 / 3;
+  }
+
+  .vs {
+    font-family: var(--font-code);
+    font-weight: 800;
+    color: var(--pink);
+    padding-bottom: 10px;
+  }
+
+  select,
+  input {
+    font: inherit;
+    color: var(--text);
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 10px 12px;
+  }
+
+  .setup button {
+    grid-column: 1 / -1;
+    justify-self: center;
+    font: inherit;
+    font-weight: 800;
+    padding: 10px 24px;
+    border: none;
+    border-radius: 999px;
+    cursor: pointer;
+    color: #2a2238;
+    background: linear-gradient(90deg, var(--lavender), var(--pink));
+  }
+
+  .setup button:disabled,
+  select:disabled,
+  input:disabled {
+    opacity: 0.6;
+    cursor: wait;
+  }
+
+  .stage {
+    display: grid;
+    grid-template-columns: 140px minmax(0, 1fr) 140px;
+    gap: 16px;
+    align-items: start;
+  }
+
+  .side {
+    position: sticky;
+    top: 20px;
+    display: grid;
+    justify-items: center;
+    gap: 6px;
+    padding: 16px 8px;
+    border-radius: var(--radius);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    opacity: 0.6;
+    transition: opacity 0.3s ease, border-color 0.3s ease;
+  }
+
+  .side.speaking {
+    opacity: 1;
+    border-color: var(--side);
+  }
+
+  .side-name {
+    margin: 0;
+    font-weight: 800;
+    text-align: center;
+    font-size: 0.9rem;
+  }
+
+  .transcript {
+    list-style: none;
+    margin: 0;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-height: 320px;
+    max-height: 560px;
+    overflow-y: auto;
+    border-radius: var(--radius);
+    background: var(--surface);
+    border: 1px solid var(--border);
+  }
+
+  .transcript :global(li) {
+    padding: 10px 14px;
+    border-radius: 14px;
+    white-space: pre-wrap;
+  }
+
+  .transcript :global(.host) {
+    align-self: center;
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.9rem;
+  }
+
+  .transcript :global(.line) {
+    max-width: 85%;
+    background: color-mix(in srgb, var(--side) 16%, var(--surface-2));
+  }
+
+  .transcript :global(.line strong) {
+    display: block;
+    font-size: 0.78rem;
+    color: var(--side);
+    margin-bottom: 2px;
+  }
+
+  .transcript :global(.left) {
+    align-self: flex-start;
+    border-bottom-left-radius: 4px;
+  }
+
+  .transcript :global(.right) {
+    align-self: flex-end;
+    border-bottom-right-radius: 4px;
+  }
+
+  .transcript :global(.pending) {
+    animation: flicker 1.2s ease-in-out infinite;
+  }
+
+  .transcript :global(.error) {
+    color: var(--pink);
+  }
+
+  @keyframes flicker {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 1; }
+  }
+
+  .vote {
+    text-align: center;
+    padding: 20px;
+    border-radius: var(--radius);
+    background: var(--surface);
+    border: 1px solid #ffd59e55;
+  }
+
+  .vote h2 {
+    margin: 0 0 12px;
+  }
+
+  .vote-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 12px;
+  }
+
+  .vote-buttons button {
+    font: inherit;
+    font-weight: 800;
+    padding: 10px 20px;
+    border-radius: 999px;
+    border: none;
+    cursor: pointer;
+    color: #2a2238;
+    background: var(--side);
+  }
+
+  .vote-buttons button:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+
+  .result {
+    margin: 12px 0 0;
+    font-weight: 700;
+    color: #ffd59e;
+  }
+
+  .scoreboard ol {
+    list-style: none;
+    margin: 8px 0 0;
+    padding: 0;
+    display: grid;
+    gap: 6px;
+  }
+
+  .scoreboard :global(li) {
+    display: flex;
+    justify-content: space-between;
+    padding: 10px 14px;
+    border-radius: 12px;
+    background: var(--surface);
+    border-left: 3px solid var(--side, var(--border));
+  }
+
+  .scoreboard :global(.empty) {
+    color: var(--muted);
+    font-style: italic;
+  }
+
+  @media (max-width: 720px) {
+    .setup {
+      grid-template-columns: 1fr;
+    }
+
+    .setup .topic {
+      grid-column: auto;
+    }
+
+    .vs {
+      justify-self: center;
+      padding: 0;
+    }
+
+    .stage {
+      grid-template-columns: 1fr 1fr;
+    }
+
+    .side {
+      position: static;
+    }
+
+    .left {
+      order: 1;
+    }
+
+    .right {
+      order: 2;
+    }
+
+    .transcript {
+      grid-column: 1 / -1;
+      order: 3;
+    }
+  }
+</style>
