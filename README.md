@@ -24,7 +24,8 @@ Ghosts answer in the language you write to them (English or Spanish).
 - **Your data stays home.** Guestbook messages, offerings and your repo history never leave your machine.
 - **Works with the lights off.** Once the graveyard has been visited, it is cached locally,
   so the whole museum works without internet.
-- **Swap the medium.** Change the model with one environment variable and every ghost changes personality.
+- **Swap the medium.** The museum detects the models you have in Ollama. Pick another one from the header
+  (Gemma, Qwen, Llama...) and every ghost is channeled by it.
 - **Free to haunt.** No tokens, no bills: talk to the dead as long as you want.
 
 ## Run it
@@ -41,11 +42,15 @@ pnpm dev           # server on http://localhost:3001, museum on http://localhost
 
 You can also start each part on its own with `pnpm dev:server` or `pnpm dev:web`.
 
+Gemma is used by default, but any chat model works: if Gemma is not installed, the museum uses
+the first model it finds. With more than one model installed, choose the "medium" from the
+selector in the header; the choice is saved in your browser.
+
 ### Options (server environment variables)
 
 | Variable       | Default            | What it does                                            |
 | -------------- | ------------------ | ------------------------------------------------------- |
-| `OLLAMA_MODEL` | `gemma3:4b`        | The model that channels the ghosts                      |
+| `OLLAMA_MODEL` | `gemma3:4b`        | Preferred model. If it is not installed, the first installed chat model is used |
 | `OLLAMA_URL`   | `http://localhost:11434` | Where Ollama is running                           |
 | `GITHUB_TOKEN` | (none)             | Optional, raises the GitHub limit from 60 to 5000 req/h |
 

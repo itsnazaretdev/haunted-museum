@@ -33,7 +33,13 @@ const path = Astro.url.pathname.replace(/\/$/, "") || "/";
         <a href="/debate" aria-current={path.startsWith("/debate") ? "page" : undefined}>Debate Hall</a>
         <a href="/graveyard" aria-current={path.startsWith("/graveyard") ? "page" : undefined}>Graveyard</a>
       </nav>
-      <span class="spirit-status" data-spirit-status>Calling the spirits…</span>
+      <div class="spirits">
+        <span class="spirit-status" data-spirit-status>Calling the spirits…</span>
+        <label class="medium" data-medium hidden>
+          <span class="sr-only">Model that channels the ghosts</span>
+          <select data-medium-select></select>
+        </label>
+      </div>
     </header>
 
     <main>
@@ -45,29 +51,52 @@ const path = Astro.url.pathname.replace(/\/$/, "") || "/";
     </footer>
 
     <script>
-      import { API_URL } from "../lib/api";
-      const status = document.querySelector<HTMLElement>("[data-spirit-status]");
+      import { getJson, getModel, setModel } from "../lib/api";
+
+      type Health = { online: boolean; modelReady: boolean; model: string; models: string[] };
+
+      const status = document.querySelector<HTMLElement>("[data-spirit-status]")!;
+      const medium = document.querySelector<HTMLElement>("[data-medium]")!;
+      const select = document.querySelector<HTMLSelectElement>("[data-medium-select]")!;
+
+      function showStatus(state: "awake" | "asleep", text: string) {
+        status.dataset.state = state;
+        status.textContent = text;
+      }
 
       async function checkSpirits() {
-        if (!status) return;
+        let health: Health;
         try {
-          const res = await fetch(`${API_URL}/api/health`);
-          const health = await res.json();
-          if (health.online && health.modelReady) {
-            status.dataset.state = "awake";
-            status.textContent = `Spirits awake · ${health.model}`;
-          } else if (health.online) {
-            status.dataset.state = "asleep";
-            status.textContent = `Missing model: ollama pull ${health.model}`;
-          } else {
-            status.dataset.state = "asleep";
-            status.textContent = "Spirits asleep · start Ollama";
-          }
+          health = await getJson<Health>("/api/health");
         } catch {
-          status.dataset.state = "asleep";
-          status.textContent = "Museum server is closed";
+          showStatus("asleep", "Museum server is closed");
+          return;
+        }
+
+        if (!health.online) return showStatus("asleep", "Spirits asleep · start Ollama");
+        if (!health.modelReady) return showStatus("asleep", "No models yet · ollama pull gemma3:4b");
+
+        // The saved model was uninstalled: forget it and use the server's choice.
+        if (getModel() && !health.models.includes(getModel())) setModel("");
+
+        if (health.models.length > 1) {
+          // Several models installed: the visitor can choose the medium.
+          showStatus("awake", "Spirits awake ·");
+          select.innerHTML = health.models
+            .map((m) => `<option value="${m}" ${m === health.model ? "selected" : ""}>${m}</option>`)
+            .join("");
+          medium.hidden = false;
+        } else {
+          showStatus("awake", `Spirits awake · ${health.model}`);
+          medium.hidden = true;
         }
       }
+
+      // Changing the medium reloads the page so every ghost starts fresh with the new model.
+      select.addEventListener("change", () => {
+        setModel(select.value);
+        location.reload();
+      });
 
       checkSpirits();
     </script>
@@ -112,6 +141,37 @@ const path = Astro.url.pathname.replace(/\/$/, "") || "/";
   nav a[aria-current="page"] {
     color: var(--text);
     background: var(--surface-2);
+  }
+
+  .spirits {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .medium[hidden] {
+    display: none;
+  }
+
+  .medium select {
+    font: inherit;
+    font-size: 0.85rem;
+    font-family: var(--font-code);
+    color: var(--text);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 5px 10px;
+    cursor: pointer;
+  }
+
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
   }
 
   .logo .mono {

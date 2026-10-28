@@ -66,7 +66,9 @@ export async function museumRoutes(app) {
     // The offering is saved even if the ghost is too sleepy to answer.
     let reaction = null;
     try {
-      reaction = await chat(buildOfferingPrompt(exhibit, offeringLabel(exhibit, item), total(counts)));
+      reaction = await chat(buildOfferingPrompt(exhibit, offeringLabel(exhibit, item), total(counts)), {
+        model: request.ghostModel,
+      });
     } catch (error) {
       request.log.warn(error, "Ghost could not react to the offering");
     }
@@ -90,7 +92,7 @@ export async function museumRoutes(app) {
 
     let ghostReply = null;
     try {
-      ghostReply = await chat(buildGuestbookPrompt(exhibit, name, message));
+      ghostReply = await chat(buildGuestbookPrompt(exhibit, name, message), { model: request.ghostModel });
     } catch (error) {
       request.log.warn(error, "Ghost could not answer the guestbook");
     }

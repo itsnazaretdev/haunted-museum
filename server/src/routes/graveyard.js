@@ -119,7 +119,7 @@ export async function graveyardRoutes(app) {
     if (!ghost) return reply.code(404).send({ error: "That grave is empty." });
     if (ghost.epitaph) return { epitaph: ghost.epitaph };
 
-    const raw = await chat(buildEpitaphMessages(ghost), { temperature: 0.9 });
+    const raw = await chat(buildEpitaphMessages(ghost), { temperature: 0.9, model: request.ghostModel });
     const epitaph = raw.split("\n")[0].replace(/^["'“”]+|["'“”]+$/g, "").trim().slice(0, 140);
 
     await update("graveyard", EMPTY, (data) => {
