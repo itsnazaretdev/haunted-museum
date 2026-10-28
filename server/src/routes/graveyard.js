@@ -3,7 +3,8 @@ import { buildEpitaphMessages, buildRepoGhostPrompt, languageReminder } from "..
 import { chat, streamToReply, cleanHistory } from "../ollama.js";
 import { read, update } from "../store.js";
 
-const DEFAULT_USER = process.env.GITHUB_USER ?? "itsnazaretdev";
+// Optional: a default graveyard owner for requests without a username (empty by default).
+const DEFAULT_USER = process.env.GITHUB_USER ?? "";
 const LIST_TTL = 15 * 60 * 1000; // Ask GitHub again after 15 minutes.
 const NAME_PATTERN = /^[\w.-]{1,100}$/;
 
@@ -66,6 +67,7 @@ async function getRepoGhost(user, name, { withMemories = true } = {}) {
   return {
     ...repo,
     ...memories,
+    owner: user,
     daysDead: daysSince(repo.pushedAt),
     lastCommit: memories.commits?.[0]?.message,
   };
@@ -75,7 +77,7 @@ export async function graveyardRoutes(app) {
   // Tombstones: repos with no activity for `months` months, plus archived ones.
   app.get("/api/graveyard", async (request, reply) => {
     const user = readUser(request.query.user);
-    if (!user) return reply.code(400).send({ error: "That is not a valid GitHub username." });
+    if (!user) return reply.code(400).send({ error: "Write a valid GitHub username first." });
     const months = Math.min(24, Math.max(1, Number(request.query.months) || 3));
 
     let result;

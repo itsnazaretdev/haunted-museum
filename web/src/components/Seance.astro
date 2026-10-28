@@ -14,6 +14,10 @@ interface Props {
   catchphrase: string;
   color: string;
   shape?: GhostShape;
+  // Hide the small ghost in the header (the exhibit page already shows a big one).
+  showGhost?: boolean;
+  // CSS selector of another ghost on the page that should move its mouth while this ghost talks.
+  talkingGhost?: string;
   // Extra field sent with every question (the GitHub user in the graveyard).
   user?: string;
   questions?: Question[];
@@ -25,8 +29,17 @@ const defaultQuestions: Question[] = [
   { label: "Why should you come back?", text: "Why should you come back from the dead?" },
 ];
 
-const { endpoint, ghost, catchphrase, color, shape = "classic", user = "", questions = defaultQuestions } =
-  Astro.props;
+const {
+  endpoint,
+  ghost,
+  catchphrase,
+  color,
+  shape = "classic",
+  showGhost = true,
+  talkingGhost = "",
+  user = "",
+  questions = defaultQuestions,
+} = Astro.props;
 const inputId = `question-${endpoint.replace(/[^\w]/g, "-")}`;
 ---
 
@@ -35,12 +48,17 @@ const inputId = `question-${endpoint.replace(/[^\w]/g, "-")}`;
   data-seance
   data-endpoint={endpoint}
   data-user={user}
+  data-talking-ghost={talkingGhost}
   style={`--ghost: ${color}`}
 >
   <header class="seance-header">
-    <div data-seance-ghost>
-      <Ghost color={color} shape={shape} size={64} />
-    </div>
+    {
+      showGhost && (
+        <div data-seance-ghost>
+          <Ghost color={color} shape={shape} size={64} />
+        </div>
+      )
+    }
     <div>
       <p class="eyebrow">Séance</p>
       <h2 data-seance-name>{ghost}</h2>
@@ -79,8 +97,12 @@ const inputId = `question-${endpoint.replace(/[^\w]/g, "-")}`;
     const list = seance.querySelector<HTMLOListElement>("[data-messages]")!;
     const form = seance.querySelector<HTMLFormElement>("[data-form]")!;
     const textarea = form.querySelector("textarea")!;
-    const ghostSvg = seance.querySelector("[data-seance-ghost] svg");
+    // The ghost that moves its mouth: the one in the header, or another one on the page.
+    const ghostSvg = seance.dataset.talkingGhost
+      ? document.querySelector(`${seance.dataset.talkingGhost} svg`)
+      : seance.querySelector("[data-seance-ghost] svg");
     const buttons = seance.querySelectorAll<HTMLButtonElement>("button");
+    const quick = seance.querySelector<HTMLElement>("[data-quick]");
 
     let history: Message[] = [];
     let busy = false;
@@ -96,6 +118,8 @@ const inputId = `question-${endpoint.replace(/[^\w]/g, "-")}`;
 
     function reset() {
       history = [];
+      // A new séance shows the suggested questions again.
+      if (quick) quick.hidden = false;
       list.innerHTML = "";
       addMessage("assistant", WELCOME);
     }
@@ -109,6 +133,8 @@ const inputId = `question-${endpoint.replace(/[^\w]/g, "-")}`;
     async function ask(question: string) {
       if (busy || !question.trim()) return;
 
+      // Suggestions are only for starting the conversation.
+      if (quick) quick.hidden = true;
       history.push({ role: "user", content: question.trim() });
       addMessage("user", question.trim());
       const bubble = addMessage("assistant", "…");
@@ -128,6 +154,8 @@ const inputId = `question-${endpoint.replace(/[^\w]/g, "-")}`;
         bubble.classList.add("error");
         bubble.textContent = "The spirit did not answer. Are the museum server and Ollama running?";
         history.pop();
+        // If the very first question failed, bring the suggestions back.
+        if (quick && history.length === 0) quick.hidden = false;
       } finally {
         setBusy(false);
       }
@@ -230,6 +258,10 @@ const inputId = `question-${endpoint.replace(/[^\w]/g, "-")}`;
   @keyframes flicker {
     0%, 100% { opacity: 0.4; }
     50% { opacity: 1; }
+  }
+
+  .quick[hidden] {
+    display: none;
   }
 
   .quick {

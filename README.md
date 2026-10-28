@@ -7,7 +7,8 @@ Every ghost runs on **Gemma 3 (4B) through Ollama**, locally. No API keys, no cl
 
 ## What you can do
 
-- **Historical wing** · Internet Explorer, Flash, jQuery, Windows Phone, Vine and Google Reader.
+- **Historical wing** · From 1971 to 2006: the Floppy Disk, VHS, the Walkman, the Game Boy, Encarta,
+  Internet Explorer, Flash, Clippy, MSN Messenger and jQuery (who refuses to accept it is dead).
   Hold a séance: each ghost tells its story, answers its critics and argues why it should come back.
 - **Ofrenda** · For Día de los Muertos, leave a candle, a marigold, pan de muerto or the ghost's
   special gift on its altar. The ghost reacts, and the most loved ghost gets a badge in the hall.
@@ -46,7 +47,6 @@ You can also start each part on its own with `pnpm dev:server` or `pnpm dev:web`
 | -------------- | ------------------ | ------------------------------------------------------- |
 | `OLLAMA_MODEL` | `gemma3:4b`        | The model that channels the ghosts                      |
 | `OLLAMA_URL`   | `http://localhost:11434` | Where Ollama is running                           |
-| `GITHUB_USER`  | `itsnazaretdev`    | Default graveyard owner                                 |
 | `GITHUB_TOKEN` | (none)             | Optional, raises the GitHub limit from 60 to 5000 req/h |
 
 ```bash

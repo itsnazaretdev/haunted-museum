@@ -23,7 +23,7 @@ const { Content } = await render(exhibit);
     <!-- Story on the left, séance on the right. The séance stays at the top (no sticky). -->
     <div class="top">
       <article class="plaque">
-        <div class="portrait">
+        <div class="portrait" data-portrait>
           <Ghost color={data.color} shape={data.shape} size={110} />
         </div>
         <p class="eyebrow">Exhibit · {data.born} — {data.died}</p>
@@ -46,6 +46,8 @@ const { Content } = await render(exhibit);
           ghost={data.ghost}
           catchphrase={data.catchphrase}
           color={data.color}
+          showGhost={false}
+          talkingGhost="[data-portrait]"
         />
       </aside>
     </div>

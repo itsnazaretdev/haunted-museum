@@ -2,7 +2,6 @@
 import Museum from "../layouts/Museum.astro";
 import Seance from "../components/Seance.astro";
 
-const defaultUser = import.meta.env.PUBLIC_GITHUB_USER ?? "itsnazaretdev";
 
 const repoQuestions = [
   { label: "Why did I abandon you?", text: "Why do you think I abandoned you?" },
@@ -25,7 +24,15 @@ const repoQuestions = [
     <form class="search" data-search>
       <label>
         <span>GitHub user</span>
-        <input name="user" value={defaultUser} maxlength="39" required />
+        <input
+          name="user"
+          maxlength="39"
+          placeholder="your-github-username"
+          autocomplete="off"
+          spellcheck="false"
+          autofocus
+          required
+        />
       </label>
       <label>
         <span>Dead after</span>
@@ -51,6 +58,7 @@ const repoQuestions = [
       ghost="A forgotten repo"
       catchphrase="…"
       color="#d9c8ff"
+      shape="folder"
       questions={repoQuestions}
     />
   </dialog>
@@ -192,7 +200,8 @@ const repoQuestions = [
     if (event.target === dialog) dialog.close();
   });
 
-  visitGraveyard();
+  // The graveyard starts empty: each visitor writes their own GitHub username.
+  statusEl.textContent = "Write a GitHub username to visit its graveyard.";
 </script>
 
 <style>

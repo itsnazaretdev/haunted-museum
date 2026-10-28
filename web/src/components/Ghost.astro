@@ -33,6 +33,7 @@ const faces: Record<GhostShape, Face> = {
   letter: { eyes: [[40, 52], [60, 52]], eye: [4, 5.5], mouth: [50, 64], blush: [[30, 61], [70, 61]] },
   bubble: { eyes: [[38, 40], [62, 40]], eye: [4.5, 6], mouth: [50, 53], blush: [[26, 50], [74, 50]] },
   coin: { eyes: [[38, 40], [62, 40]], mouth: [50, 58], blush: [[28, 52], [72, 52]], dollarEyes: true },
+  folder: { eyes: [[39, 52], [61, 52]], eye: [4.5, 6], mouth: [50, 64], blush: [[27, 61], [73, 61]] },
 };
 
 const face = faces[shape] ?? faces.classic;
@@ -199,6 +200,16 @@ const height = isClassic ? size * 1.2 : size * 0.86;
         <circle class="body" cx="50" cy="44" r="36" />
         <circle class="ring" cx="50" cy="44" r="30" />
         <path class="shine" d="M26 28a30 30 0 0 1 14-10" />
+      </g>
+    )
+  }
+
+  {
+    shape === "folder" && (
+      <g>
+        <path class="body" d="M10 22a5 5 0 0 1 5-5h21l7 7h42a5 5 0 0 1 5 5v47a5 5 0 0 1-5 5H15a5 5 0 0 1-5-5Z" />
+        <path class="paper-soft" d="M10 34h80v42a5 5 0 0 1-5 5H15a5 5 0 0 1-5-5Z" />
+        <rect class="ink-soft" x="16" y="21" width="16" height="3" rx="1.5" />
       </g>
     )
   }

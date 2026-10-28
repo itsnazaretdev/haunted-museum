@@ -12,6 +12,7 @@ export const GHOST_SHAPES = [
   "letter",
   "bubble",
   "coin",
+  "folder",
 ] as const;
 
 export type GhostShape = (typeof GHOST_SHAPES)[number];
