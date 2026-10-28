@@ -4,7 +4,13 @@ import Museum from "../layouts/Museum.astro";
 import Ghost from "../components/Ghost.astro";
 
 const exhibits = (await getCollection("exhibits")).sort((a, b) => a.data.order - b.data.order);
-const ghosts = exhibits.map((e) => ({ id: e.id, name: e.data.name, ghost: e.data.ghost, color: e.data.color }));
+const ghosts = exhibits.map((e) => ({
+  id: e.id,
+  name: e.data.name,
+  ghost: e.data.ghost,
+  color: e.data.color,
+  shape: e.data.shape,
+}));
 const DEFAULT_TOPIC = "Which of you deserves to come back from the dead?";
 ---
 
@@ -47,7 +53,13 @@ const DEFAULT_TOPIC = "Which of you deserves to come back from the dead?";
 
     <section class="stage" data-stage>
       <div class="side left" data-side="left">
-        <Ghost color="var(--side)" size={90} />
+        {
+          ghosts.map((g) => (
+            <div class="avatar" data-avatar={g.id} hidden>
+              <Ghost color={g.color} shape={g.shape} size={90} />
+            </div>
+          ))
+        }
         <p class="side-name" data-name></p>
       </div>
 
@@ -56,7 +68,13 @@ const DEFAULT_TOPIC = "Which of you deserves to come back from the dead?";
       </ol>
 
       <div class="side right" data-side="right">
-        <Ghost color="var(--side)" size={90} />
+        {
+          ghosts.map((g) => (
+            <div class="avatar" data-avatar={g.id} hidden>
+              <Ghost color={g.color} shape={g.shape} size={90} />
+            </div>
+          ))
+        }
         <p class="side-name" data-name></p>
       </div>
     </section>
@@ -101,15 +119,19 @@ const DEFAULT_TOPIC = "Which of you deserves to come back from the dead?";
 
   let current: { left: GhostInfo; right: GhostInfo } | null = null;
 
+  // Each side has every ghost drawn (with its own shape); only the chosen one is shown.
   function showGhost(side: "left" | "right", ghost: GhostInfo) {
     sides[side].style.setProperty("--side", ghost.color);
     sides[side].querySelector("[data-name]")!.textContent = ghost.name;
+    sides[side].querySelectorAll<HTMLElement>("[data-avatar]").forEach((avatar) => {
+      avatar.hidden = avatar.dataset.avatar !== ghost.id;
+    });
   }
 
   function setTalking(side: "left" | "right" | null) {
     (["left", "right"] as const).forEach((s) => {
       sides[s].classList.toggle("speaking", s === side);
-      sides[s].querySelector("svg")?.classList.toggle("talking", s === side);
+      sides[s].querySelectorAll("svg").forEach((svg) => svg.classList.toggle("talking", s === side));
     });
   }
 

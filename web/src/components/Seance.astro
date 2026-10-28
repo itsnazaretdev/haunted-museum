@@ -1,5 +1,6 @@
 ---
 import Ghost from "./Ghost.astro";
+import type { GhostShape } from "../lib/ghost-shapes";
 
 interface Question {
   label: string;
@@ -12,6 +13,7 @@ interface Props {
   ghost: string;
   catchphrase: string;
   color: string;
+  shape?: GhostShape;
   // Extra field sent with every question (the GitHub user in the graveyard).
   user?: string;
   questions?: Question[];
@@ -23,7 +25,8 @@ const defaultQuestions: Question[] = [
   { label: "Why should you come back?", text: "Why should you come back from the dead?" },
 ];
 
-const { endpoint, ghost, catchphrase, color, user = "", questions = defaultQuestions } = Astro.props;
+const { endpoint, ghost, catchphrase, color, shape = "classic", user = "", questions = defaultQuestions } =
+  Astro.props;
 const inputId = `question-${endpoint.replace(/[^\w]/g, "-")}`;
 ---
 
@@ -36,7 +39,7 @@ const inputId = `question-${endpoint.replace(/[^\w]/g, "-")}`;
 >
   <header class="seance-header">
     <div data-seance-ghost>
-      <Ghost color={color} size={64} />
+      <Ghost color={color} shape={shape} size={64} />
     </div>
     <div>
       <p class="eyebrow">Séance</p>

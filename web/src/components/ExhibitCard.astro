@@ -1,5 +1,6 @@
 ---
 import Ghost from "./Ghost.astro";
+import type { GhostShape } from "../lib/ghost-shapes";
 
 interface Props {
   id: string;
@@ -7,15 +8,16 @@ interface Props {
   born: number;
   died: number | string;
   color: string;
+  shape: GhostShape;
   epitaph: string;
 }
 
-const { id, name, born, died, color, epitaph } = Astro.props;
+const { id, name, born, died, color, shape, epitaph } = Astro.props;
 ---
 
 <a class="card" href={`/exhibit/${id}`} style={`--ghost: ${color}`}>
   <div class="frame">
-    <Ghost color={color} size={80} />
+    <Ghost color={color} shape={shape} size={110} />
   </div>
   <h2>{name}</h2>
   <p class="years mono">{born} — {died}</p>

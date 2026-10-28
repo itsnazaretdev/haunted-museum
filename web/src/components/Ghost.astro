@@ -1,30 +1,225 @@
 ---
+// A ghost shaped like the object it haunts: same face and halo for every ghost.
+import type { GhostShape } from "../lib/ghost-shapes";
+
 interface Props {
   color: string;
   size?: number;
+  shape?: GhostShape;
   mood?: "calm" | "talking";
 }
 
-const { color, size = 96, mood = "calm" } = Astro.props;
+const { color, size = 96, shape = "classic", mood = "calm" } = Astro.props;
+
+type Face = {
+  eyes: [number, number][];
+  eye?: [number, number]; // rx, ry
+  mouth: [number, number];
+  blush: [number, number][];
+  dollarEyes?: boolean;
+};
+
+// Where the face sits on each object (viewBox is 100 x 120).
+const faces: Record<GhostShape, Face> = {
+  classic: { eyes: [[38, 50], [62, 50]], mouth: [50, 68], blush: [[30, 62], [70, 62]] },
+  floppy: { eyes: [[40, 57], [60, 57]], eye: [4, 5.5], mouth: [50, 68], blush: [[31, 65], [69, 65]] },
+  vhs: { eyes: [[38, 62], [62, 62]], eye: [4, 5.5], mouth: [50, 70], blush: [[27, 68], [73, 68]] },
+  cassette: { eyes: [[39, 46], [61, 46]], eye: [4, 4], mouth: [50, 63], blush: [[23, 58], [77, 58]] },
+  handheld: { eyes: [[43, 27], [57, 27]], eye: [3, 4], mouth: [50, 35], blush: [[39, 33], [61, 33]] },
+  disc: { eyes: [[37, 30], [63, 30]], eye: [4, 5.5], mouth: [50, 63], blush: [[27, 50], [73, 50]] },
+  book: { eyes: [[34, 47], [66, 47]], eye: [4, 5.5], mouth: [50, 62], blush: [[25, 56], [75, 56]] },
+  browser: { eyes: [[40, 48], [60, 48]], eye: [4.5, 6], mouth: [50, 61], blush: [[29, 58], [71, 58]] },
+  clapper: { eyes: [[40, 54], [60, 54]], eye: [4.5, 6], mouth: [50, 67], blush: [[29, 63], [71, 63]] },
+  letter: { eyes: [[40, 52], [60, 52]], eye: [4, 5.5], mouth: [50, 64], blush: [[30, 61], [70, 61]] },
+  bubble: { eyes: [[38, 40], [62, 40]], eye: [4.5, 6], mouth: [50, 53], blush: [[26, 50], [74, 50]] },
+  coin: { eyes: [[38, 40], [62, 40]], mouth: [50, 58], blush: [[28, 52], [72, 52]], dollarEyes: true },
+};
+
+const face = faces[shape] ?? faces.classic;
+const [rx, ry] = face.eye ?? [5, 7];
+
+// Objects have no tail, so their drawing is cropped to the object (no empty space below).
+const isClassic = shape === "classic";
+const viewBox = isClassic ? "0 0 100 120" : "0 2 100 86";
+const height = isClassic ? size * 1.2 : size * 0.86;
 ---
 
 <svg
-  class:list={["ghost", mood]}
+  class:list={["ghost", mood, `shape-${shape}`]}
   width={size}
-  height={size * 1.2}
-  viewBox="0 0 100 120"
+  height={height}
+  viewBox={viewBox}
   aria-hidden="true"
   style={`--ghost: ${color}`}
 >
-  <path
-    class="body"
-    d="M50 8C25 8 14 28 14 50v58l12-10 12 10 12-10 12 10 12-10 12 10V50C86 28 75 8 50 8Z"
-  ></path>
-  <ellipse class="eye" cx="38" cy="50" rx="5" ry="7"></ellipse>
-  <ellipse class="eye" cx="62" cy="50" rx="5" ry="7"></ellipse>
-  <circle class="blush" cx="30" cy="62" r="5"></circle>
-  <circle class="blush" cx="70" cy="62" r="5"></circle>
-  <ellipse class="mouth" cx="50" cy="68" rx="5" ry="4"></ellipse>
+
+  {
+    shape === "classic" && (
+      <path class="body" d="M50 8C25 8 14 28 14 50v58l12-10 12 10 12-10 12 10 12-10 12 10V50C86 28 75 8 50 8Z" />
+    )
+  }
+
+  {
+    shape === "floppy" && (
+      <g>
+        <path class="body" d="M20 10h50l14 14v54a4 4 0 0 1-4 4H20a4 4 0 0 1-4-4V14a4 4 0 0 1 4-4Z" />
+        <rect class="ink-soft" x="32" y="10" width="34" height="22" rx="2" />
+        <rect class="ink" x="54" y="14" width="7" height="14" rx="1.5" />
+        <rect class="paper" x="24" y="44" width="52" height="34" rx="3" />
+        <rect class="ink-soft" x="30" y="48" width="40" height="2" rx="1" />
+      </g>
+    )
+  }
+
+  {
+    shape === "vhs" && (
+      <g>
+        <rect class="body" x="8" y="26" width="84" height="50" rx="6" />
+        <rect class="ink-soft" x="28" y="34" width="44" height="18" rx="4" />
+        <circle class="paper" cx="40" cy="43" r="5.5" />
+        <circle class="paper" cx="60" cy="43" r="5.5" />
+        <circle class="ink" cx="40" cy="43" r="2" />
+        <circle class="ink" cx="60" cy="43" r="2" />
+        <rect class="paper-soft" x="14" y="56" width="72" height="16" rx="3" />
+      </g>
+    )
+  }
+
+  {
+    shape === "cassette" && (
+      <g>
+        <rect class="body" x="10" y="24" width="80" height="54" rx="6" />
+        <rect class="paper-soft" x="17" y="30" width="66" height="26" rx="3" />
+        <rect class="ink-soft" x="29" y="39" width="42" height="14" rx="7" />
+        <path class="ink-soft" d="M30 78l5-11h30l5 11Z" />
+        <circle class="ink" cx="23" cy="72" r="1.6" />
+        <circle class="ink" cx="77" cy="72" r="1.6" />
+      </g>
+    )
+  }
+
+  {
+    shape === "handheld" && (
+      <g>
+        <rect class="body" x="24" y="6" width="52" height="78" rx="7" />
+        <rect class="ink-soft" x="30" y="12" width="40" height="34" rx="4" />
+        <rect class="screen" x="34" y="16" width="32" height="26" rx="2" />
+        <path class="ink" d="M33 58h4v-4h4v4h4v4h-4v4h-4v-4h-4Z" />
+        <circle class="ink" cx="59" cy="63" r="3.2" />
+        <circle class="ink" cx="67" cy="57" r="3.2" />
+        <rect class="ink-soft" x="40" y="73" width="7" height="2.5" rx="1.2" />
+        <rect class="ink-soft" x="51" y="73" width="7" height="2.5" rx="1.2" />
+      </g>
+    )
+  }
+
+  {
+    shape === "disc" && (
+      <g>
+        <circle class="body" cx="50" cy="44" r="36" />
+        <circle class="paper-soft" cx="50" cy="44" r="14" />
+        <circle class="hole" cx="50" cy="44" r="5" />
+        <path class="shine" d="M24 30a30 30 0 0 1 16-14" />
+        <path class="shine" d="M70 72a30 30 0 0 0 9-9" />
+      </g>
+    )
+  }
+
+  {
+    shape === "book" && (
+      <g>
+        <rect class="body" x="7" y="22" width="86" height="60" rx="5" />
+        <path class="page" d="M13 24c12-5 25-4 36 2v52c-11-6-24-7-36-2Z" />
+        <path class="page" d="M87 24c-12-5-25-4-36 2v52c11-6 24-7 36-2Z" />
+        <rect class="ink-soft" x="49" y="26" width="2" height="52" rx="1" />
+        <rect class="ink-soft" x="20" y="31" width="22" height="2.5" rx="1.2" />
+        <rect class="ink-soft" x="20" y="37" width="16" height="2.5" rx="1.2" />
+        <rect class="ink-soft" x="58" y="31" width="22" height="2.5" rx="1.2" />
+        <rect class="ink-soft" x="64" y="37" width="16" height="2.5" rx="1.2" />
+      </g>
+    )
+  }
+
+  {
+    shape === "browser" && (
+      <g>
+        <rect class="body" x="10" y="14" width="80" height="64" rx="7" />
+        <rect class="ink-soft" x="10" y="14" width="80" height="13" rx="7" />
+        <circle class="paper" cx="19" cy="20.5" r="2.2" />
+        <circle class="paper" cx="26" cy="20.5" r="2.2" />
+        <circle class="paper" cx="33" cy="20.5" r="2.2" />
+        <rect class="paper" x="42" y="18" width="40" height="5" rx="2.5" />
+      </g>
+    )
+  }
+
+  {
+    shape === "clapper" && (
+      <g>
+        <rect class="body" x="14" y="34" width="72" height="46" rx="5" />
+        <g transform="rotate(-12 14 30)">
+          <rect class="body" x="14" y="20" width="72" height="12" rx="3" />
+          <path class="ink" d="M24 20h8l-6 12h-8Z M42 20h8l-6 12h-8Z M60 20h8l-6 12h-8Z M78 20h8l-6 12h-8Z" />
+        </g>
+        <rect class="ink" x="14" y="34" width="72" height="9" rx="2" />
+        <path class="paper" d="M24 34h8l-5 9h-8Z M42 34h8l-5 9h-8Z M60 34h8l-5 9h-8Z M78 34h8l-5 9h-8Z" />
+      </g>
+    )
+  }
+
+  {
+    shape === "letter" && (
+      <g>
+        <path class="body" d="M22 8h40l18 18v52a4 4 0 0 1-4 4H22a4 4 0 0 1-4-4V12a4 4 0 0 1 4-4Z" />
+        <path class="ink-soft" d="M62 8v14a4 4 0 0 0 4 4h14Z" />
+        <rect class="ink-soft" x="28" y="22" width="22" height="3" rx="1.5" />
+        <rect class="ink-soft" x="28" y="30" width="40" height="3" rx="1.5" />
+        <rect class="ink-soft" x="28" y="38" width="34" height="3" rx="1.5" />
+      </g>
+    )
+  }
+
+  {
+    shape === "bubble" && (
+      <g>
+        <path
+          class="body"
+          d="M32 14H68A24 24 0 0 1 92 38V44A24 24 0 0 1 68 68H42C36 75 24 80 10 80C16 74 19 68 19 63A24 24 0 0 1 8 44V38A24 24 0 0 1 32 14Z"
+        />
+        <circle class="ink-soft" cx="62" cy="61" r="2.2" />
+        <circle class="ink-soft" cx="69" cy="61" r="2.2" />
+        <circle class="ink-soft" cx="76" cy="61" r="2.2" />
+      </g>
+    )
+  }
+
+  {
+    shape === "coin" && (
+      <g>
+        <circle class="body" cx="50" cy="44" r="36" />
+        <circle class="ring" cx="50" cy="44" r="30" />
+        <path class="shine" d="M26 28a30 30 0 0 1 14-10" />
+      </g>
+    )
+  }
+
+  {
+    face.dollarEyes
+      ? face.eyes.map(([x, y]) => (
+          <text class="eye dollar" x={x} y={y + 6} text-anchor="middle">
+            $
+          </text>
+        ))
+      : face.eyes.map(([x, y]) => <ellipse class="eye" cx={x} cy={y} rx={rx} ry={ry} />)
+  }
+  {face.blush.map(([x, y]) => <circle class="blush" cx={x} cy={y} r={shape === "handheld" ? 2.5 : 5} />)}
+  <ellipse
+    class="mouth"
+    cx={face.mouth[0]}
+    cy={face.mouth[1]}
+    rx={shape === "handheld" ? 3 : 4.5}
+    ry={shape === "handheld" ? 2.5 : 3.5}
+  />
 </svg>
 
 <style>
@@ -39,9 +234,60 @@ const { color, size = 96, mood = "calm" } = Astro.props;
     opacity: 0.92;
   }
 
+  .ink {
+    fill: #2a2238;
+    opacity: 0.75;
+  }
+
+  .ink-soft {
+    fill: #2a2238;
+    opacity: 0.22;
+  }
+
+  .paper {
+    fill: #ffffff;
+    opacity: 0.7;
+  }
+
+  .page {
+    fill: color-mix(in srgb, var(--ghost) 30%, #ffffff);
+  }
+
+  .paper-soft {
+    fill: #ffffff;
+    opacity: 0.4;
+  }
+
+  .screen {
+    fill: color-mix(in srgb, var(--ghost) 55%, #ffffff);
+  }
+
+  .hole {
+    fill: #16131f;
+  }
+
+  .ring {
+    fill: none;
+    stroke: #2a2238;
+    stroke-opacity: 0.2;
+    stroke-width: 2.5;
+  }
+
+  .shine {
+    fill: none;
+    stroke: #ffffff;
+    stroke-opacity: 0.6;
+    stroke-width: 3;
+    stroke-linecap: round;
+  }
+
   .eye,
   .mouth {
     fill: #2a2238;
+  }
+
+  .dollar {
+    font: 800 20px/1 var(--font-code, monospace);
   }
 
   .blush {

@@ -24,7 +24,7 @@ const { Content } = await render(exhibit);
     <div class="top">
       <article class="plaque">
         <div class="portrait">
-          <Ghost color={data.color} size={110} />
+          <Ghost color={data.color} shape={data.shape} size={110} />
         </div>
         <p class="eyebrow">Exhibit · {data.born} — {data.died}</p>
         <h1>{data.name}</h1>

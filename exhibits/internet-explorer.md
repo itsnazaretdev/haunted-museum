@@ -3,8 +3,9 @@ name: Internet Explorer
 ghost: The Ghost of Internet Explorer
 born: 1995
 died: 2022
-order: 1
+order: 6
 color: "#a8d8ff"
+shape: browser
 epitaph: "Here lies the browser you used to download another browser."
 offering: '🧭 A CD-ROM with "Windows 95" written on it'
 personality: >
