@@ -139,7 +139,8 @@ Rules: maximum 14 words, one sentence, no hashtags, no emojis, no quotes. Return
       content: `Repository: ${repo.name}
 Description: ${repo.description || "no description"}
 Main language: ${repo.language || "unknown"}
-Last commit message: ${repo.lastCommit || "unknown"}
+Created: ${repo.createdAt}
+Last activity: ${repo.pushedAt}${repo.archived ? " (archived)" : ""}${repo.lastCommit ? `\nLast commit message: ${repo.lastCommit}` : ""}
 Abandoned for: ${repo.daysDead} days`,
     },
   ];

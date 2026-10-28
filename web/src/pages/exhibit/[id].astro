@@ -20,32 +20,35 @@ const { Content } = await render(exhibit);
   <div class="container exhibit" style={`--ghost: ${data.color}`}>
     <a class="back" href="/">← Back to the halls</a>
 
-    <article class="plaque">
-      <div class="portrait">
-        <Ghost color={data.color} size={110} />
-      </div>
-      <p class="eyebrow">Exhibit · {data.born} — {data.died}</p>
-      <h1>{data.name}</h1>
-      <p class="epitaph">“{data.epitaph}”</p>
+    <!-- Story on the left, séance on the right. The séance stays at the top (no sticky). -->
+    <div class="top">
+      <article class="plaque">
+        <div class="portrait">
+          <Ghost color={data.color} size={110} />
+        </div>
+        <p class="eyebrow">Exhibit · {data.born} — {data.died}</p>
+        <h1>{data.name}</h1>
+        <p class="epitaph">“{data.epitaph}”</p>
 
-      <details class="critics">
-        <summary>What the critics say</summary>
-        <ul>{data.critics.map((critic) => <li>{critic}</li>)}</ul>
-      </details>
+        <details class="critics">
+          <summary>What the critics say</summary>
+          <ul>{data.critics.map((critic) => <li>{critic}</li>)}</ul>
+        </details>
 
-      <div class="archive">
-        <Content />
-      </div>
-    </article>
+        <div class="archive">
+          <Content />
+        </div>
+      </article>
 
-    <aside class="seance-wrapper">
-      <Seance
-        endpoint={`/api/exhibits/${exhibit.id}/seance`}
-        ghost={data.ghost}
-        catchphrase={data.catchphrase}
-        color={data.color}
-      />
-    </aside>
+      <aside class="seance-wrapper">
+        <Seance
+          endpoint={`/api/exhibits/${exhibit.id}/seance`}
+          ghost={data.ghost}
+          catchphrase={data.catchphrase}
+          color={data.color}
+        />
+      </aside>
+    </div>
 
     <div class="visitors">
       <Offering exhibitId={exhibit.id} offering={data.offering} color={data.color} />
@@ -57,13 +60,18 @@ const { Content } = await render(exhibit);
 <style>
   .exhibit {
     display: grid;
+    gap: 32px;
+  }
+
+  .top {
+    display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     gap: 32px;
+    /* Each column keeps its own height: the séance stays at the top and does not follow the scroll. */
     align-items: start;
   }
 
   .back {
-    grid-column: 1 / -1;
     color: var(--muted);
     text-decoration: none;
     font-size: 0.9rem;
@@ -129,25 +137,15 @@ const { Content } = await render(exhibit);
   }
 
   .visitors {
-    grid-column: 1 / -1;
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     gap: 24px;
     align-items: start;
   }
 
-  .seance-wrapper {
-    position: sticky;
-    top: 20px;
-  }
-
   @media (max-width: 820px) {
-    .exhibit {
+    .top {
       grid-template-columns: 1fr;
-    }
-
-    .seance-wrapper {
-      position: static;
     }
 
     .visitors {

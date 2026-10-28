@@ -66,28 +66,45 @@ const items = [
     const reaction = altar.querySelector<HTMLElement>("[data-reaction]")!;
     const buttons = altar.querySelectorAll<HTMLButtonElement>("[data-item]");
 
-    // Draws every offering on the altar shelf, mixed like a real ofrenda.
+    // Mixes the offerings like a real ofrenda (candle, flower, bread, candle...),
+    // always in the same order so the altar does not jump around on every click.
+    function mix(counts: Counts) {
+      const left = { ...counts };
+      const pile: string[] = [];
+      while (Object.values(left).some((n) => n > 0)) {
+        for (const id of Object.keys(left)) {
+          if (left[id] > 0) {
+            pile.push(id);
+            left[id] -= 1;
+          }
+        }
+      }
+      return pile;
+    }
+
+    // Draws the offerings on the altar shelf. The newest one appears first, with a glow.
     function render({ counts, total }: OfferingsResponse, newItem?: string) {
       totalEl.textContent = String(total);
-      const pile = Object.entries(counts).flatMap(([id, n]) => Array(n).fill(emojis[id]));
-      const shown = pile.sort(() => Math.random() - 0.5).slice(0, MAX_ON_SHELF);
+      const pile = mix(counts);
+
+      if (newItem) {
+        // The new offering is already counted: take one out so it is not drawn twice.
+        pile.splice(pile.lastIndexOf(newItem), 1);
+        pile.unshift(newItem);
+      }
 
       shelf.innerHTML = "";
-      if (shown.length === 0) {
+      if (pile.length === 0) {
         shelf.innerHTML = `<span class="empty">The altar is empty…</span>`;
         return;
       }
-      shown.forEach((emoji) => {
+
+      pile.slice(0, MAX_ON_SHELF).forEach((id, index) => {
         const span = document.createElement("span");
-        span.textContent = emoji;
+        span.textContent = emojis[id];
+        if (newItem && index === 0) span.className = "fresh";
         shelf.append(span);
       });
-      if (newItem) {
-        const fresh = document.createElement("span");
-        fresh.textContent = emojis[newItem];
-        fresh.className = "fresh";
-        shelf.prepend(fresh);
-      }
     }
 
     async function give(item: string) {

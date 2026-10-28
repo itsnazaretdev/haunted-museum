@@ -45,19 +45,21 @@ async function getRepos(user) {
 }
 
 // Repo info + memories (README, commits, epitaph), cached so the ghost works offline.
-async function getRepoGhost(user, name) {
+// The README and commits cost 2 GitHub requests, so they are only downloaded for a séance.
+async function getRepoGhost(user, name, { withMemories = true } = {}) {
   const { repos } = await getRepos(user);
   const repo = repos.find((r) => r.name === name);
   if (!repo) return null;
 
   const key = `${user}/${name}`;
   const store = await read("graveyard", EMPTY);
-  let memories = store.memories[key];
+  let memories = store.memories[key] ?? {};
 
-  if (!memories) {
-    memories = await fetchRepoMemories(user, name);
-    await update("graveyard", EMPTY, (data) => {
-      data.memories[key] = { ...memories, ...data.memories[key] };
+  if (withMemories && memories.readme === undefined) {
+    const fetched = await fetchRepoMemories(user, name);
+    memories = await update("graveyard", EMPTY, (data) => {
+      data.memories[key] = { ...data.memories[key], ...fetched };
+      return data.memories[key];
     });
   }
 
@@ -110,7 +112,8 @@ export async function graveyardRoutes(app) {
     const name = request.params.repo;
     if (!user || !NAME_PATTERN.test(name)) return reply.code(400).send({ error: "Invalid repo." });
 
-    const ghost = await getRepoGhost(user, name);
+    // The epitaph only needs the repo list (already loaded), so it costs no GitHub requests.
+    const ghost = await getRepoGhost(user, name, { withMemories: false });
     if (!ghost) return reply.code(404).send({ error: "That grave is empty." });
     if (ghost.epitaph) return { epitaph: ghost.epitaph };
 
