@@ -7,9 +7,9 @@ Every ghost runs on **Gemma 3 (4B) through Ollama**, locally. No API keys, no cl
 
 ## What you can do
 
-- **Historical wing** · From 1971 to 2006: the Floppy Disk, VHS, the Walkman, the Game Boy, Encarta,
-  Internet Explorer, Flash, Clippy, MSN Messenger and jQuery (who refuses to accept it is dead).
-  Hold a séance: each ghost tells its story, answers its critics and argues why it should come back.
+- **Historical wing** · Eight ghosts born between 1971 and 1999: the Floppy Disk, VHS, the Walkman,
+  the Game Boy, Encarta, Internet Explorer, Clippy and MSN Messenger. Each one is shaped like its object.
+  Talk to any of them: each ghost tells its story, answers its critics and argues why it should come back.
 - **Ofrenda** · For Día de los Muertos, leave a candle, a marigold, pan de muerto or the ghost's
   special gift on its altar. The ghost reacts, and the most loved ghost gets a badge in the hall.
 - **Guestbook** · Sign each exhibit's guestbook and the ghost writes a dedication back.
@@ -71,4 +71,5 @@ server/
 web/               Astro site: hall, exhibits, Debate Hall and Repo Graveyard
 ```
 
-To add a new ghost, just add a new `.md` file to `/exhibits`.
+To add a new ghost, just add a new `.md` file to `/exhibits` (copy one of the existing ones as a template).
+Its `shape` can be one of the shapes in `web/src/lib/ghost-shapes.ts`.
