@@ -17,13 +17,13 @@ const { id, name, born, died, color, shape, epitaph } = Astro.props;
 
 <a class="card" href={`/exhibit/${id}`} style={`--ghost: ${color}`}>
   <div class="frame">
-    <Ghost color={color} shape={shape} size={110} />
+    <Ghost color={color} shape={shape} size={80} />
   </div>
   <h2>{name}</h2>
   <p class="years mono">{born} — {died}</p>
   <p class="epitaph">“{epitaph}”</p>
   <div class="footer">
-    <span class="cta">Hold a séance →</span>
+    <span class="cta">Talk to this ghost →</span>
     <span class="stats mono" data-stats-for={id}></span>
   </div>
   <span class="badge" data-badge-for={id} hidden>💛 Most loved</span>
